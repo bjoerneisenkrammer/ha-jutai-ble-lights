@@ -1,146 +1,138 @@
 #!/usr/bin/env python3
-"""
-Jutai BLE MQTT Bridge
----------------------
-A BLE → MQTT bridge for Jutai (and compatible) Bluetooth light controllers.
-
-Features:
-- Dynamic MAC address (passed as argument)
-- Manufacturer prefix derived from MAC
-- Clear command dictionary for easy customization
-- Human-readable lighting modes
-- Works seamlessly with Home Assistant MQTT Light integration
-
-Author: (your GitHub name)
-"""
-
 import asyncio
-import argparse
 import os
+import yaml
+import argparse
+import logging
 from bleak import BleakClient
 import paho.mqtt.client as mqtt
 
-# ==========================================================
-# 🧩 CONFIGURATION
-# ==========================================================
+# -------------------------------------------------------------------
+# Configuration
+# -------------------------------------------------------------------
 MQTT_BROKER = os.getenv("MQTT_HOST", "core-mosquitto")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC_PREFIX = "blelights"
 
-DEFAULT_SERVICE_UUID = "0000fff0-0000-1000-8000-00805f9b34fb"
-DEFAULT_CHAR_UUID = "0000fff1-0000-1000-8000-00805f9b34fb"
+# BLE characteristic UUID for Jutai devices
+WRITE_CHAR_UUID = "0000fff1-0000-1000-8000-00805f9b34fb"
 
-# ==========================================================
-# 💡 COMMAND DICTIONARIES
-# ==========================================================
-
-# --- Power Commands ---
-COMMANDS = {
-    "on":  "54021101",
-    "off": "54021102",
-}
-
-# --- Lighting Modes (1–8) ---
+# Map all available lighting modes (mode number -> description)
 MODES = {
-    1: {"name": "Combination",     "hex": "54020100"},
-    2: {"name": "In Waves",        "hex": "54020200"},
-    3: {"name": "Sequential",      "hex": "54020300"},
-    4: {"name": "Slo-Glo",         "hex": "54020400"},
-    5: {"name": "Chasing/Flash",   "hex": "54020500"},
-    6: {"name": "Slow Fade",       "hex": "54020600"},
-    7: {"name": "Twinkle/Flash",   "hex": "54020700"},
-    8: {"name": "Steady On",       "hex": "54020800"},
+    1: "Combination",
+    2: "In Waves",
+    3: "Sequential",
+    4: "Slo-Glo",
+    5: "Chasing/Flash",
+    6: "Slow Fade",
+    7: "Twinkle/Flash",
+    8: "Steady On",
 }
 
-# ==========================================================
-# ⚙️ COMMAND BUILDERS
-# ==========================================================
+# -------------------------------------------------------------------
+# Helper functions
+# -------------------------------------------------------------------
 
-def build_command(mac: str, payload_hex: str) -> bytes:
-    """Combine manufacturer prefix (from MAC) with command payload."""
-    prefix = mac.replace(":", "")[:6].upper()
-    return bytes.fromhex(prefix + payload_hex)
+def load_devices_config(path="/config/jutai_devices.yaml"):
+    """Load device mapping (name -> MAC) from YAML file."""
+    try:
+        with open(path, "r") as f:
+            data = yaml.safe_load(f)
+        devices = {dev["name"]: dev["mac"] for dev in data.get("lights", [])}
+        return devices
+    except Exception as e:
+        raise RuntimeError(f"Failed to load devices config: {e}")
 
-def build_power_command(mac: str, on: bool) -> bytes:
-    """Build ON/OFF command."""
-    payload = COMMANDS["on"] if on else COMMANDS["off"]
-    return build_command(mac, payload)
+def build_command(mac_prefix: str, command_bytes: bytes) -> bytes:
+    """Build full BLE command including Jutai header (574C + data)."""
+    return bytes.fromhex(mac_prefix) + command_bytes
 
-def build_mode_command(mac: str, mode_number: int) -> bytes:
-    """Build lighting mode command."""
-    mode_info = MODES.get(mode_number)
-    if not mode_info:
-        raise ValueError(f"Invalid mode number: {mode_number}")
-    return build_command(mac, mode_info["hex"])
+def get_mac_prefix():
+    """Return static manufacturer prefix (always 574C54 for Jutai)."""
+    return "574C54"
 
-def build_brightness_command(mac: str, brightness: int) -> bytes:
-    """Build brightness command (0–100%)."""
-    brightness = max(0, min(100, brightness))
-    level = int((brightness / 100) * 255)
-    payload = f"540209{level:02X}00"
-    return build_command(mac, payload)
+def brightness_to_hex(value: int) -> str:
+    """Convert brightness (0–100) into Jutai-compatible hex string."""
+    value = max(0, min(value, 100))
+    hex_val = f"{int(value * 255 / 100):02X}"
+    return f"540209{hex_val}00"
 
-# ==========================================================
-# 📡 MQTT HANDLER
-# ==========================================================
+async def send_ble_command(mac: str, hex_command: str):
+    """Connect to device and send BLE command."""
+    try:
+        async with BleakClient(mac) as client:
+            if not client.is_connected:
+                logging.error(f"Failed to connect to {mac}")
+                return False
+            await client.write_gatt_char(WRITE_CHAR_UUID, bytes.fromhex(hex_command))
+            logging.info(f"Sent command to {mac}: {hex_command}")
+            return True
+    except Exception as e:
+        logging.error(f"BLE command failed for {mac}: {e}")
+        return False
 
-async def handle_mqtt_message(client, ble_client, mac, topic, payload):
-    """Handle incoming MQTT commands."""
-    payload = payload.decode().strip().lower()
-    print(f"[MQTT] Received: {payload}")
+# -------------------------------------------------------------------
+# MQTT logic
+# -------------------------------------------------------------------
 
-    if payload == "on":
-        cmd = build_power_command(mac, True)
-    elif payload == "off":
-        cmd = build_power_command(mac, False)
-    elif payload.startswith("brightness:"):
-        brightness = int(payload.split(":")[1])
-        cmd = build_brightness_command(mac, brightness)
-    elif payload.startswith("mode:"):
-        mode_number = int(payload.split(":")[1])
-        cmd = build_mode_command(mac, mode_number)
-    else:
-        print(f"[WARN] Unknown command: {payload}")
-        return
+def on_message(client, userdata, msg):
+    """Handle MQTT command messages."""
+    try:
+        payload = msg.payload.decode().strip()
+        topic_parts = msg.topic.split("/")
+        device_name = topic_parts[1]
+        devices = userdata["devices"]
 
-    print(f"[BLE] Sending: {cmd.hex()}")
-    await ble_client.write_gatt_char(DEFAULT_CHAR_UUID, cmd, response=True)
-    client.publish(f"{MQTT_TOPIC_PREFIX}/{mac}/state", payload)
+        if device_name not in devices:
+            logging.warning(f"Unknown device '{device_name}' in topic {msg.topic}")
+            return
 
-# ==========================================================
-# 🚀 MAIN LOOP
-# ==========================================================
+        mac = devices[device_name]
+        mac_prefix = get_mac_prefix()
 
-async def main(args):
-    mac = args.mac.upper()
-    print(f"🔗 Connecting to {mac} via BLE...")
+        if payload == "on":
+            cmd = f"{mac_prefix}54021101"
+        elif payload == "off":
+            cmd = f"{mac_prefix}54021102"
+        elif payload.startswith("brightness:"):
+            brightness = int(payload.split(":")[1])
+            cmd = mac_prefix + brightness_to_hex(brightness)
+        elif payload.startswith("mode:"):
+            mode_num = int(payload.split(":")[1])
+            if mode_num not in MODES:
+                logging.warning(f"Invalid mode {mode_num}")
+                return
+            cmd = f"{mac_prefix}54020{mode_num:02X}00"
+        else:
+            logging.warning(f"Unsupported payload: {payload}")
+            return
 
-    async with BleakClient(mac) as ble_client:
-        print("✅ Connected to BLE device")
+        asyncio.run(send_ble_command(mac, cmd))
 
-        mqtt_client = mqtt.Client()
-        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        mqtt_client.loop_start()
+    except Exception as e:
+        logging.error(f"Error handling MQTT message: {e}")
 
-        command_topic = f"{MQTT_TOPIC_PREFIX}/{mac}/set"
-        mqtt_client.subscribe(command_topic)
+# -------------------------------------------------------------------
+# Main entrypoint
+# -------------------------------------------------------------------
 
-        def on_message(_, __, msg):
-            asyncio.run_coroutine_threadsafe(
-                handle_mqtt_message(mqtt_client, ble_client, mac, msg.topic, msg.payload),
-                asyncio.get_event_loop()
-            )
-
-        mqtt_client.on_message = on_message
-        print(f"📡 Subscribed to: {command_topic}")
-        print("💡 Ready to receive MQTT commands")
-
-        while True:
-            await asyncio.sleep(1)
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Jutai BLE → MQTT Bridge")
-    parser.add_argument("--mac", required=True, help="BLE device MAC address")
+def main():
+    parser = argparse.ArgumentParser(description="Jutai BLE MQTT Bridge")
+    parser.add_argument("--config", default="/config/jutai_devices.yaml", help="Path to device config file")
     args = parser.parse_args()
 
-    asyncio.run(main(args))
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+    devices = load_devices_config(args.config)
+    logging.info(f"Loaded devices: {devices}")
+
+    client = mqtt.Client(userdata={"devices": devices})
+    client.on_message = on_message
+    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    client.subscribe(f"{MQTT_TOPIC_PREFIX}/+/set")
+
+    logging.info("Jutai BLE MQTT bridge running. Waiting for commands...")
+    client.loop_forever()
+
+if __name__ == "__main__":
+    main()

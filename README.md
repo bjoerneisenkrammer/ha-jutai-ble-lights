@@ -29,4 +29,4 @@ via MQTT topics — ideal for automation or smart integrations.
 - The following Python packages:
 
 ```bash
-pip install bleak paho-mqtt
+pip install bleak paho-mqtt pyyaml
