@@ -5,5 +5,8 @@ export MQTT_PORT=$(bashio::config 'mqtt_port')
 export MQTT_USER=$(bashio::config 'mqtt_user')
 export MQTT_PASS=$(bashio::config 'mqtt_pass')
 
-echo "Starting JuTai BLE MQTT Bridge..."
-python3 /usr/src/app/jutai_ble_mqtt_bridge.py --config /config/jutai_devices.yaml
+# Pass devices list as JSON
+export JUTAI_DEVICES_JSON="$(bashio::config 'devices')"
+
+echo "Starting JuTai BLE MQTT Bridge with devices from Add-on config..."
+python3 /usr/src/app/jutai_ble_mqtt_bridge.py

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import json
 import os
 import importlib
 import yaml
@@ -40,16 +41,31 @@ MODES = {
 # -------------------------------------------------------------------
 
 def load_devices_config(path="/config/jutai_devices.yaml"):
-    """Load device mapping (name -> MAC) from YAML file."""
+    """Load device mapping (name -> MAC) either from file or env JSON."""
+    # Try to read devices from environment variable first
+    env_json = os.getenv("JUTAI_DEVICES_JSON")
+    if env_json:
+        try:
+            data = json.loads(env_json)
+            devices = {dev["name"]: dev["mac"] for dev in data}
+            logging.info(f"✅ Loaded {len(devices)} devices from Add-on config (env).")
+            return devices
+        except Exception as e:
+            logging.error(f"❌ Failed to parse device JSON: {e}")
+            raise
+
+    # Fallback: YAML file (for manual testing)
+    if not path:
+        path = "/config/jutai_devices.yaml"
     try:
         with open(path, "r") as f:
             data = yaml.safe_load(f)
         devices = {dev["name"]: dev["mac"] for dev in data.get("lights", [])}
-        logging.info(f"✅ Device config loaded successfully ({len(devices)} devices).")
+        logging.info(f"✅ Loaded {len(devices)} devices from {path}.")
         return devices
     except Exception as e:
-        logging.error(f"❌ Failed to load devices config: {e}")
-        raise RuntimeError(f"Failed to load devices config: {e}")
+        logging.error(f"❌ Failed to load device config: {e}")
+        raise
 
 def build_command(mac_prefix: str, command_bytes: bytes) -> bytes:
     """Build full BLE command including Jutai header (574C + data)."""
