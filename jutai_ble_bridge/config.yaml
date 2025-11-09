@@ -17,8 +17,14 @@ options:
   mqtt_port: 1883
   mqtt_user: "jutai_ble_bridge"
   mqtt_pass: "lichterkette"
+  devices:
+  - name: "lichterkette_1"
+    mac: "AA:BB:CC:DD:EE:FF"
 schema:
   mqtt_host: str
   mqtt_port: int
   mqtt_user: str
   mqtt_pass: str
+  devices:
+    - name: str
+      mac: str
