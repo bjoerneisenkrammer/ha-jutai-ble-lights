@@ -147,6 +147,7 @@ def on_message(client, userdata, msg):
                 logging.warning(f"Invalid mode {mode_num}")
                 return
             cmd = f"{mac_prefix}02{mode_num:02X}00"
+            state = f"mode:{mode_num}"
         else:
             logging.warning(f"Unsupported payload: {payload}")
             return
