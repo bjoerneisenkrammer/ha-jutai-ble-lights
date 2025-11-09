@@ -1,5 +1,5 @@
 name: "JuTai BLE MQTT Bridge"
-version: "1.0.0"
+version: "0.1.0"
 slug: "jutai_ble_bridge"
 description: "Bridge between Lumineo/JuTai BLE Christmas lights and MQTT"
 startup: services
@@ -9,9 +9,19 @@ arch:
   - amd64
   - armv7
 init: false
+host_network: true
+privileged:
+  - NET_ADMIN
+  - SYS_ADMIN
 map:
   - config:rw
   - share:rw
+  - type: device
+    device: /dev/bus/usb
+  - type: tmpfs
+    path: /run  
+devices:
+  - /var/run/dbus
 options:
   mqtt_host: "core-mosquitto"
   mqtt_port: 1883

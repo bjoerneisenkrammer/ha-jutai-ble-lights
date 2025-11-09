@@ -10,7 +10,8 @@ LABEL \
 
 # Install dependencies
 RUN apk add --no-cache python3 py3-pip bluez && \
-    pip install bleak paho-mqtt pyyaml
+    python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install bleak paho-mqtt pyyaml
 
 # Copy script and run file
 COPY jutai_ble_mqtt_bridge.py /usr/src/app/
@@ -21,5 +22,6 @@ WORKDIR /usr/src/app
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:$PATH"
 
 CMD ["/run.sh"]
