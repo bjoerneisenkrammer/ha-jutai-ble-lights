@@ -117,11 +117,14 @@ def on_message(client, userdata, msg):
 
         if payload == "on":
             cmd = f"{mac_prefix}021101"
+            state = "on"
         elif payload == "off":
             cmd = f"{mac_prefix}021102"
+            state = "off"
         elif payload.startswith("brightness:"):
             brightness = int(payload.split(":")[1])
             cmd = mac_prefix + brightness_to_hex(brightness)
+            state = f"brightness:{brightness}"
         elif payload.startswith("mode:"):
             mode_num = int(payload.split(":")[1])
             if mode_num not in MODES:
@@ -133,6 +136,7 @@ def on_message(client, userdata, msg):
             return
 
         asyncio.run(send_ble_command(mac, cmd))
+        client.publish(f"{MQTT_TOPIC_PREFIX}/{device_name}/state", state, retain=True)
 
     except Exception as e:
         logging.error(f"Error handling MQTT message: {e}")
