@@ -6,7 +6,6 @@ import importlib
 import yaml
 import argparse
 import logging
-import traceback
 from bleak import BleakClient
 import paho.mqtt.client as mqtt
 
@@ -41,26 +40,54 @@ MODES = {
 # -------------------------------------------------------------------
 
 def load_devices_config(path="/config/jutai_devices.yaml"):
-    """Load device mapping (name -> MAC) either from file or env JSON."""
-    # Try to read devices from environment variable first
+    """Load device mapping (name -> MAC) either from file or env JSON/YAML."""
     env_json = os.getenv("JUTAI_DEVICES_JSON")
     if env_json:
         try:
-            data = json.loads(env_json)
-            devices = {dev["name"]: dev["mac"] for dev in data}
+            data = yaml.safe_load(env_json)
+
+            # Normalize several possible shapes into a list of {name,mac} items
+            if isinstance(data, dict):
+                if "devices" in data and isinstance(data["devices"], list):
+                    items = data["devices"]
+                elif "name" in data and "mac" in data:
+                    # single device provided as a dict
+                    items = [data]
+                else:
+                    # assume mapping name->mac (e.g. {"corridor": "AA:BB:..."})
+                    if all(isinstance(v, str) for v in data.values()):
+                        logging.info(f"✅ Loaded {len(data)} devices from Add-on config (env).")
+                        return data
+                    raise ValueError("Unsupported dict shape for devices")
+            elif isinstance(data, list):
+                items = data
+            else:
+                raise ValueError("Unsupported devices format from env")
+
+            devices = {dev["name"]: dev["mac"] for dev in items}
             logging.info(f"✅ Loaded {len(devices)} devices from Add-on config (env).")
             return devices
         except Exception as e:
-            logging.error(f"❌ Failed to parse device JSON: {e}")
+            logging.error(f"❌ Failed to parse device JSON/YAML: {e}")
+            logging.debug(f"Received data: {env_json}")
             raise
 
-    # Fallback: YAML file (for manual testing)
+    # Fallback: YAML file (für manuelle Tests)
     if not path:
         path = "/config/jutai_devices.yaml"
     try:
         with open(path, "r") as f:
             data = yaml.safe_load(f)
-        devices = {dev["name"]: dev["mac"] for dev in data.get("lights", [])}
+        if isinstance(data, dict) and "devices" in data:
+            items = data["devices"]
+        elif isinstance(data, dict) and "lights" in data:
+            items = data["lights"]
+        elif isinstance(data, list):
+            items = data
+        else:
+            items = []
+
+        devices = {dev["name"]: dev["mac"] for dev in items}
         logging.info(f"✅ Loaded {len(devices)} devices from {path}.")
         return devices
     except Exception as e:
@@ -88,7 +115,7 @@ async def send_ble_command(mac: str, hex_command: str):
         async with BleakClient(mac) as client:
             if not client.is_connected:
                 await client.connect()
-                # await asyncio.sleep(0.01)           # small delay after connect
+                await asyncio.sleep(0.01)           # small delay after connect
             if not client.is_connected:
                 logging.error(f"❌ Failed to connect to {mac}")
                 return False
@@ -158,6 +185,30 @@ def on_message(client, userdata, msg):
     except Exception as e:
         logging.error(f"Error handling MQTT message: {e}")
 
+def publish_discovery(client, device_name):
+    """Publish Home Assistant MQTT discovery config for this light."""
+    discovery_topic = f"homeassistant/light/{device_name}/config"
+    payload = {
+        "name": f"Lichterkette {device_name.capitalize()}",
+        "unique_id": f"jutai_{device_name}",
+        "command_topic": f"{MQTT_TOPIC_PREFIX}/{device_name}/set",
+        "state_topic": f"{MQTT_TOPIC_PREFIX}/{device_name}/state",
+        "payload_on": "on",
+        "payload_off": "off",
+        "brightness_command_topic": f"{MQTT_TOPIC_PREFIX}/{device_name}/set",
+        "brightness_command_template": "brightness:{{ value }}",
+        "brightness_state_topic": f"{MQTT_TOPIC_PREFIX}/{device_name}/state",
+        "brightness_value_template": (
+            "{% if value.startswith('brightness:') %}"
+            "{{ value.split(':')[1] }}"
+            "{% else %}100{% endif %}"
+        ),
+        "brightness_scale": 100,
+        "qos": 0
+    }
+    client.publish(discovery_topic, json.dumps(payload), retain=True)
+    logging.info(f"📡 Published MQTT discovery for '{device_name}'")
+
 # -------------------------------------------------------------------
 # Heartbeat loop
 # -------------------------------------------------------------------
@@ -195,6 +246,10 @@ def main():
     logging.info(f"Loaded devices: {devices}")
 
     client = mqtt.Client(userdata={"devices": devices})
+    # Publish discovery configs for all devices
+    for name in devices:
+        publish_discovery(client, name)
+
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_message = on_message
