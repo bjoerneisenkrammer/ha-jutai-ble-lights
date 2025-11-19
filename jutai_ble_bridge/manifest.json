@@ -1,0 +1,17 @@
+{
+  "domain": "jutai_ble",
+  "name": "JuTai BLE Lights",
+  "documentation": "https://github.com/…",
+  "requirements": [
+    "bleak==0.22.0"
+  ],
+  "dependencies": ["bluetooth"],
+  "codeowners": ["@bjoerneisenkrammer"],
+  "iot_class": "local_push",
+  "version": "0.2.0",
+  "bluetooth": [
+    {
+      "connectable": true
+    }
+  ]
+}
