@@ -6,7 +6,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .light import JutaiBleLight
 
-DOMAIN = "jutai_ble"
+DOMAIN = "jutai_ble_lights"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):

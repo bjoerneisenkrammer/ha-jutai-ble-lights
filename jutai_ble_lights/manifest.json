@@ -1,5 +1,5 @@
 {
-  "domain": "jutai_ble",
+  "domain": "jutai_ble_lights",
   "name": "JuTai BLE Lights",
   "documentation": "https://github.com/…",
   "requirements": [
