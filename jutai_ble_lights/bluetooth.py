@@ -4,7 +4,7 @@ from homeassistant.components.bluetooth.match import BluetoothCallbackMatcher
 from homeassistant.components.bluetooth import async_register_callback
 from homeassistant.core import HomeAssistant
 
-DOMAIN = "jutai_ble"
+DOMAIN = "jutai_ble_lights"
 
 MANUFACTURER_PREFIX = bytes.fromhex("574C54")
 
