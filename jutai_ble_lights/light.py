@@ -3,6 +3,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from bleak import BleakClient
+from bleak_retry_connector import establish_connection
+import asyncio
 from .jutai_protocol import WRITE_CHAR_UUID, build_on_cmd, build_off_cmd, build_brightness_cmd
 
 
@@ -31,6 +33,7 @@ class JutaiBleLight(LightEntity):
         self._attr_unique_id = f"jutai_ble_lights_{mac.replace(':','')}"
         self._is_on = False
         self._brightness = 255
+        self._lock = asyncio.Lock()
 
     @property
     def is_on(self):
@@ -56,9 +59,17 @@ class JutaiBleLight(LightEntity):
         self.async_write_ha_state()
 
     async def _send(self, hex_cmd):
-        async with BleakClient(self._mac) as client:
-            await client.write_gatt_char(
-                WRITE_CHAR_UUID,
-                hex_cmd.encode("ascii"),
-                response=False
+        async with self._lock:
+            client = await establish_connection(
+                BleakClient,
+                self._mac,
+                self._mac,
             )
+            try:
+                await client.write_gatt_char(
+                    WRITE_CHAR_UUID,
+                    hex_cmd.encode("ascii"),
+                    response=False
+                )
+            finally:
+                await client.disconnect()
