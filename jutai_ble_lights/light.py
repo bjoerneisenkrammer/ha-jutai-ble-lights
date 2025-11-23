@@ -2,8 +2,9 @@ from homeassistant.components.light import LightEntity, ColorMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components import bluetooth
 from bleak import BleakClient
-from bleak_retry_connector import establish_connection
+from bleak_retry_connector import establish_connection, BleakNotFoundError
 import asyncio
 from .jutai_protocol import WRITE_CHAR_UUID, build_on_cmd, build_off_cmd, build_brightness_cmd
 
@@ -60,9 +61,15 @@ class JutaiBleLight(LightEntity):
 
     async def _send(self, hex_cmd):
         async with self._lock:
+            ble_device = bluetooth.async_ble_device_from_address(
+                self._hass, self._mac, connectable=True
+            )
+            if not ble_device:
+                raise BleakNotFoundError(f"Device {self._mac} not found")
+            
             client = await establish_connection(
                 BleakClient,
-                self._mac,
+                ble_device,
                 self._mac,
             )
             try:
