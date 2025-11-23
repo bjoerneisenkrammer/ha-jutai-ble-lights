@@ -3,11 +3,11 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add JuTai BLE Light",
-        "description": "Enter the name and MAC address of the JuTai BLE light.",
+        "title": "Add JuTai Light Strip",
+        "description": "Enter name and MAC address.",
         "data": {
           "name": "Name",
-          "mac": "MAC-address"
+          "mac": "MAC address"
         }
       }
     },

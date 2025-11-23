@@ -1,54 +1,47 @@
-from __future__ import annotations
-
-import asyncio
-from typing import Any
-
-from homeassistant.components.light import (
-    LightEntity,
-    ColorMode,
-)
+from homeassistant.components.light import LightEntity, ColorMode
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
-
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from bleak import BleakClient
+from .jutai_protocol import WRITE_CHAR_UUID, build_on_cmd, build_off_cmd, build_brightness_cmd
 
-from .jutai_protocol import (
-    WRITE_CHAR_UUID,
-    build_on_cmd,
-    build_off_cmd,
-    build_brightness_cmd,
-)
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up JuTai BLE Light from a config entry."""
+    mac = entry.data["mac"]
+    name = entry.data["name"]
+    
+    light = JutaiBleLight(hass, mac, name)
+    async_add_entities([light], update_before_add=False)
 
 
 class JutaiBleLight(LightEntity):
-
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
     _attr_color_mode = ColorMode.BRIGHTNESS
     _attr_should_poll = False
 
-    def __init__(self, hass: HomeAssistant, mac: str, name: str):
+    def __init__(self, hass, mac, name):
         self._hass = hass
         self._mac = mac
         self._attr_name = name
-        self._attr_unique_id = f"jutai_{mac.replace(':', '')}"
-
+        self._attr_unique_id = f"jutai_ble_lights_{mac.replace(':','')}"
         self._is_on = False
-        self._brightness = 255  # HA brightness range 1–255
+        self._brightness = 255
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self):
         return self._is_on
 
-    def _scale_ha_to_jutai(self, bri: int) -> int:
-        """Convert HA (0–255) -> Jutai (0–100)."""
-        return round((bri / 255) * 100)
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
+    async def async_turn_on(self, **kwargs):
         if "brightness" in kwargs:
-            ha_bri = kwargs["brightness"]
-            jutai_bri = self._scale_ha_to_jutai(ha_bri)
-            cmd = build_brightness_cmd(jutai_bri)
-            self._brightness = ha_bri
+            bri = kwargs["brightness"]
+            jutai = round((bri / 255) * 100)
+            cmd = build_brightness_cmd(jutai)
+            self._brightness = bri
             self._is_on = True
         else:
             cmd = build_on_cmd()
@@ -57,21 +50,15 @@ class JutaiBleLight(LightEntity):
         await self._send(cmd)
         self.async_write_ha_state()
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
+    async def async_turn_off(self, **kwargs):
         await self._send(build_off_cmd())
         self._is_on = False
         self.async_write_ha_state()
 
-    async def async_update(self) -> None:
-        # Jutai protokolliert keine Statuswerte
-        return
-
-    async def _send(self, hex_cmd: str) -> None:
-        payload = hex_cmd.encode("ascii")
-
+    async def _send(self, hex_cmd):
         async with BleakClient(self._mac) as client:
             await client.write_gatt_char(
                 WRITE_CHAR_UUID,
-                payload,
+                hex_cmd.encode("ascii"),
                 response=False
             )

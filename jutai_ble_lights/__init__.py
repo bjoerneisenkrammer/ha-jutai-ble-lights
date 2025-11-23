@@ -1,33 +1,29 @@
-from __future__ import annotations
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import ConfigType
+from .const import DOMAIN
 
-from .light import JutaiBleLight
 
-DOMAIN = "jutai_ble_lights"
+PLATFORMS = ["light"]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType):
+    """Set up via YAML (not used)."""
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Set up a JuTai BLE device from a config entry."""
-
-    mac = entry.data["mac"]
-    name = entry.data["name"]
-
+    """Set up Jutai BLE Lights from a config entry."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {"mac": mac, "name": name}
+    hass.data[DOMAIN][entry.entry_id] = entry.data
 
-    # Register entity
-    await hass.config_entries.async_forward_entry_setups(entry, ["light"])
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Unload an integration entry."""
-    unload_ok = await hass.config_entries.async_forward_entry_unload(
-        entry, "light"
-    )
+    """Unload Jutai BLE Lights."""
+    unload_ok = await hass.config_entries.async_forward_entry_unload(entry, "light")
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok
