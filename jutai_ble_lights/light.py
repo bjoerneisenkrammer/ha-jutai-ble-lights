@@ -51,25 +51,22 @@ class JutaiBleLight(LightEntity):
 
     async def async_turn_on(self, **kwargs):
         if "brightness" in kwargs:
+            # Brightness explicitly set - send ON then brightness
             bri = kwargs["brightness"]
+            self._brightness = bri
             jutai = round((bri / 255) * 100)
             _LOGGER.debug(
                 "Turn on %s with brightness: HA=%d/255 (%.1f%%), JuTai=%d/100",
                 self._attr_name, bri, (bri/255)*100, jutai
             )
-            cmd = build_brightness_cmd(jutai)
-            self._brightness = bri
-            self._is_on = True
+            await self._send(build_on_cmd())
+            await self._send(build_brightness_cmd(jutai))
         else:
-            # Turn on without brightness change - use last brightness or send ON command
-            _LOGGER.debug("Turn on %s (no brightness, using last: %d)", self._attr_name, self._brightness)
-            # Send brightness command with stored value to ensure device reflects correct state
-            jutai = round((self._brightness / 255) * 100)
-            cmd = build_brightness_cmd(jutai)
-            self._is_on = True
-
-        _LOGGER.debug("Sending command: %s", cmd)
-        await self._send(cmd)
+            # Just turn on - device remembers last brightness
+            _LOGGER.debug("Turn on %s (device will use last brightness)", self._attr_name)
+            await self._send(build_on_cmd())
+        
+        self._is_on = True
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
