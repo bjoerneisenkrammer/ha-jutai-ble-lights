@@ -201,6 +201,9 @@ cython_debug/
 
 # GitHub templates and discussion drafts (not committed to repo)
 .github-meta/
+
+# Claude Code local settings (machine-specific paths/permissions)
+.claude/settings.local.json
 .cursorignore
 .cursorindexingignore
 
