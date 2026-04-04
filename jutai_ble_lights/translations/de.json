@@ -1,0 +1,18 @@
+{
+  "title": "JuTai BLE Lichterketten",
+  "config": {
+    "step": {
+      "user": {
+        "title": "JuTai Lichterkette hinzufügen",
+        "description": "Bitte MAC-Adresse und Namen eingeben.",
+        "data": {
+          "name": "Name",
+          "mac": "MAC-Adresse"
+        }
+      }
+    },
+    "error": {
+      "already_configured": "Dieses Gerät wurde bereits hinzugefügt."
+    }
+  }
+}

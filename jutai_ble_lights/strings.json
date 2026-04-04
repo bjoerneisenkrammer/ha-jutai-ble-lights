@@ -1,0 +1,18 @@
+{
+  "title": "JuTai BLE Lights",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add JuTai Light Strip",
+        "description": "Enter name and MAC address.",
+        "data": {
+          "name": "Name",
+          "mac": "MAC address"
+        }
+      }
+    },
+    "error": {
+      "already_configured": "This device is already added."
+    }
+  }
+}
