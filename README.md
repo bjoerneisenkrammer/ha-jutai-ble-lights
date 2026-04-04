@@ -26,12 +26,10 @@ This integration will be available through HACS in the future.
 
 ### Manual Installation
 
-1. Copy the `jutai_ble_lights` folder to your Home Assistant `custom_components` directory:
+1. Copy the `custom_components/jutai_ble_lights` folder to your Home Assistant `custom_components` directory:
    ```bash
    # On your Home Assistant host
-   cd /config
-   mkdir -p custom_components
-   cp -r jutai_ble_lights custom_components/
+   cp -r custom_components/jutai_ble_lights /config/custom_components/
    ```
 
 2. Restart Home Assistant
@@ -104,7 +102,7 @@ Then check **Settings** → **System** → **Logs** for detailed debug output.
 Want to contribute or modify the integration? See the code structure:
 
 ```
-jutai_ble_lights/
+custom_components/jutai_ble_lights/
 ├── __init__.py          # Integration setup
 ├── config_flow.py       # UI configuration flow
 ├── const.py             # Constants (domain name)

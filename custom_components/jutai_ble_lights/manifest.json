@@ -1,0 +1,13 @@
+{
+  "domain": "jutai_ble_lights",
+  "name": "JuTai BLE Lights",
+  "codeowners": ["@bjoerneisenkrammer"],
+  "config_flow": true,
+  "dependencies": ["bluetooth"],
+  "documentation": "https://github.com/bjoerneisenkrammer/ha-jutai-ble-lights",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/bjoerneisenkrammer/ha-jutai-ble-lights/issues",
+  "requirements": ["bleak>=0.22.0,<3.0.0", "bleak-retry-connector>=3.0.0"],
+  "version": "0.2.1"
+}

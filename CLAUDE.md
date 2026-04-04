@@ -9,7 +9,7 @@ Home Assistant **custom integration** for controlling JuTai / Lumineo BLE LED li
 ## Repository Structure
 
 ```
-jutai_ble_lights/          # Main integration package (installed into HA custom_components)
+custom_components/jutai_ble_lights/   # Main integration package
 ├── __init__.py            # Integration setup & config entry lifecycle
 ├── const.py               # Constants (DOMAIN = "jutai_ble_lights")
 ├── config_flow.py         # Config UI: user enters device name + MAC address
@@ -77,12 +77,12 @@ HA brightness (0–255) is mapped to JuTai percentage (0–100) and vice versa.
 ## Common Tasks
 
 ### Adding a new BLE command
-1. Add the command builder to [jutai_ble_lights/jutai_protocol.py](jutai_ble_lights/jutai_protocol.py)
-2. Call it from [jutai_ble_lights/light.py](jutai_ble_lights/light.py) inside the asyncio lock
+1. Add the command builder to [custom_components/jutai_ble_lights/jutai_protocol.py](custom_components/jutai_ble_lights/jutai_protocol.py)
+2. Call it from [custom_components/jutai_ble_lights/light.py](custom_components/jutai_ble_lights/light.py) inside the asyncio lock
 
 ### Testing locally
 No automated tests exist. Manual testing steps:
-1. Copy `jutai_ble_lights/` into `<HA config>/custom_components/`
+1. Copy `custom_components/jutai_ble_lights/` into `<HA config>/custom_components/`
 2. Restart Home Assistant
 3. Add integration via Settings → Devices & Services → Add Integration → JuTai BLE Lights
 4. Test via HA UI: toggle, brightness slider
