@@ -204,6 +204,9 @@ cython_debug/
 
 # Claude Code local settings (machine-specific paths/permissions)
 .claude/settings.local.json
+
+# Local deploy config (contains machine-specific paths)
+.vscode/deploy.env
 .cursorignore
 .cursorindexingignore
 

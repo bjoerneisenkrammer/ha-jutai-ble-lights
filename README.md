@@ -85,18 +85,6 @@ Once configured, your JuTai lights appear as standard Home Assistant light entit
 - Check logs for connection timing details
 - Ensure no other apps are connected to the device
 
-### Enable Debug Logging
-
-Add to your `configuration.yaml`:
-```yaml
-logger:
-  default: info
-  logs:
-    custom_components.jutai_ble_lights: debug
-```
-
-Then check **Settings** → **System** → **Logs** for detailed debug output.
-
 ## Development
 
 Want to contribute or modify the integration? See the code structure:

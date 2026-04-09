@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Deploy: Copy to HA Server",
+      "type": "shell",
+      "command": "$cfg = @{}; Get-Content '${workspaceFolder}\\.vscode\\deploy.env' | Where-Object { $_ -notmatch '^#' -and $_ -match '=' } | ForEach-Object { $k,$v = $_ -split '=',2; $cfg[$k.Trim()] = $v.Trim() }; robocopy '${workspaceFolder}\\custom_components\\jutai_ble_lights' $cfg['HA_DEPLOY_PATH'] /MIR /NP; if ($LASTEXITCODE -le 7) { exit 0 } else { exit $LASTEXITCODE }",
+      "options": {
+        "shell": {
+          "executable": "powershell.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
