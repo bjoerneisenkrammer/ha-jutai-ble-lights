@@ -39,6 +39,7 @@ class JutaiBleLight(LightEntity):
         self._is_on = False
         self._brightness = 255
         self._lock = asyncio.Lock()
+        self._client: BleakClient | None = None
 
     @property
     def is_on(self):
@@ -77,34 +78,45 @@ class JutaiBleLight(LightEntity):
         self._is_on = False
         self.async_write_ha_state()
 
-    async def _send(self, hex_cmd):
+    def _on_disconnected(self, client: BleakClient) -> None:
+        _LOGGER.debug("Device %s disconnected", self._mac)
+        self._client = None
+
+    async def _ensure_connected(self) -> None:
+        if self._client and self._client.is_connected:
+            return
+        _LOGGER.debug("Looking for BLE device %s", self._mac)
+        ble_device = bluetooth.async_ble_device_from_address(
+            self._hass, self._mac, connectable=True
+        )
+        if not ble_device:
+            _LOGGER.error("Device %s not found", self._mac)
+            raise BleakNotFoundError(f"Device {self._mac} not found")
+        _LOGGER.debug("Establishing connection to %s", self._mac)
+        self._client = await establish_connection(
+            BleakClient,
+            ble_device,
+            self._mac,
+            disconnected_callback=self._on_disconnected,
+        )
+        _LOGGER.debug("Connected to %s", self._mac)
+
+    async def _send(self, hex_cmd: str) -> None:
         async with self._lock:
-            _LOGGER.debug("Looking for BLE device %s", self._mac)
-            ble_device = bluetooth.async_ble_device_from_address(
-                self._hass, self._mac, connectable=True
+            await self._ensure_connected()
+            encoded_cmd = hex_cmd.encode("ascii")
+            _LOGGER.debug(
+                "Writing to char %s: cmd='%s' (bytes: %s)",
+                WRITE_CHAR_UUID, hex_cmd, encoded_cmd.hex()
             )
-            if not ble_device:
-                _LOGGER.error("Device %s not found", self._mac)
-                raise BleakNotFoundError(f"Device {self._mac} not found")
-            
-            _LOGGER.debug("Establishing connection to %s", self._mac)
-            client = await establish_connection(
-                BleakClient,
-                ble_device,
-                self._mac,
+            await self._client.write_gatt_char(
+                WRITE_CHAR_UUID,
+                encoded_cmd,
+                response=False,
             )
-            try:
-                encoded_cmd = hex_cmd.encode("ascii")
-                _LOGGER.debug(
-                    "Writing to char %s: cmd='%s' (bytes: %s)",
-                    WRITE_CHAR_UUID, hex_cmd, encoded_cmd.hex()
-                )
-                await client.write_gatt_char(
-                    WRITE_CHAR_UUID,
-                    encoded_cmd,
-                    response=False
-                )
-                _LOGGER.debug("Command sent successfully")
-            finally:
-                await client.disconnect()
-                _LOGGER.debug("Disconnected from %s", self._mac)
+            _LOGGER.debug("Command sent successfully")
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._client and self._client.is_connected:
+            await self._client.disconnect()
+            self._client = None
