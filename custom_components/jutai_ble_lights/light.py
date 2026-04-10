@@ -9,6 +9,8 @@ Connection strategy:
 State management:
   No polling (_attr_should_poll = False). The on/off state and brightness are
   tracked locally and pushed to HA via async_write_ha_state() after each command.
+  On HA restart, the last known state is restored from HA's state database via
+  the RestoreEntity mixin.
 
 Concurrency:
   An asyncio lock (_lock) prevents two BLE writes from overlapping, which could
@@ -23,6 +25,7 @@ from homeassistant.components.light import LightEntity, ColorMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.components import bluetooth
 from bleak import BleakClient
 from bleak_retry_connector import establish_connection, BleakNotFoundError
@@ -48,7 +51,7 @@ async def async_setup_entry(
     async_add_entities([light], update_before_add=False)
 
 
-class JutaiBleLight(LightEntity):
+class JutaiBleLight(LightEntity, RestoreEntity):
     """Representation of a JuTai BLE LED light strip."""
 
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
@@ -64,6 +67,20 @@ class JutaiBleLight(LightEntity):
         self._brightness = 255  # Default to full brightness for the first turn-on.
         self._lock = asyncio.Lock()
         self._client: BleakClient | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore last known state on HA restart."""
+        last_state = await self.async_get_last_state()
+        if last_state is None:
+            return
+        self._is_on = last_state.state == "on"
+        if (brightness := last_state.attributes.get("brightness")) is not None:
+            self._brightness = int(brightness)
+        _LOGGER.debug(
+            "Restored state for %s: is_on=%s, brightness=%s",
+            self._attr_name, self._is_on, self._brightness,
+        )
+        self.async_write_ha_state()
 
     @property
     def is_on(self):
