@@ -14,5 +14,15 @@
     "error": {
       "already_configured": "This device is already added."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure JuTai Light Strip",
+        "data": {
+          "name": "Name"
+        }
+      }
+    }
   }
 }

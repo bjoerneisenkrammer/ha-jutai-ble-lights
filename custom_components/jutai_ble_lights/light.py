@@ -19,7 +19,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up JuTai BLE Light from a config entry."""
     mac = entry.data["mac"]
-    name = entry.data["name"]
+    name = entry.options.get("name", entry.data["name"])
     
     _LOGGER.info("Setting up JuTai BLE Light: %s (%s)", name, mac)
     light = JutaiBleLight(hass, mac, name)
