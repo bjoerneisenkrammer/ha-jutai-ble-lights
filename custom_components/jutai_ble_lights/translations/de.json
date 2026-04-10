@@ -14,5 +14,15 @@
     "error": {
       "already_configured": "Dieses Gerät wurde bereits hinzugefügt."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "JuTai Lichterkette konfigurieren",
+        "data": {
+          "name": "Name"
+        }
+      }
+    }
   }
 }
