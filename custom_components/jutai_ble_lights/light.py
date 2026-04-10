@@ -80,6 +80,7 @@ class JutaiBleLight(LightEntity, RestoreEntity):
             "Restored state for %s: is_on=%s, brightness=%s",
             self._attr_name, self._is_on, self._brightness,
         )
+        self.async_write_ha_state()
 
     @property
     def is_on(self):
