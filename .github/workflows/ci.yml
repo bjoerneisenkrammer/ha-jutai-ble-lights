@@ -34,17 +34,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          # Must satisfy Home Assistant's requires-python, otherwise pip
+          # silently backtracks to an old HA release that pins an outdated
+          # bleak, and the check below would validate the wrong version.
+          python-version: "3.14"
 
       # bleak and bleak-retry-connector are provided by HA's bluetooth
-      # integration, not by our manifest, so install the exact versions HA
-      # pins rather than whatever pip resolves on its own.
-      - name: Install Home Assistant and its pinned Bluetooth stack
+      # integration, not by our manifest. Install exactly what that integration
+      # pins so the check runs against the real runtime environment.
+      - name: Install Home Assistant and the Bluetooth stack it pins
         run: |
           pip install homeassistant
           python -c "import homeassistant, pathlib; print((pathlib.Path(homeassistant.__file__).parent / 'package_constraints.txt').read_text(), end='')" > ha-constraints.txt
-          grep -iE '^(bleak|bleak-retry-connector)==' ha-constraints.txt
-          pip install -c ha-constraints.txt bleak bleak-retry-connector
+          python -c "import homeassistant, pathlib, json; r = pathlib.Path(homeassistant.__file__).parent; print('\n'.join(json.loads((r / 'components/bluetooth/manifest.json').read_text())['requirements']))" > bluetooth-requirements.txt
+          cat bluetooth-requirements.txt
+          pip install -c ha-constraints.txt -r bluetooth-requirements.txt
 
       - name: Check the bleak API surface used by this integration
         run: python scripts/check_bleak_api.py
