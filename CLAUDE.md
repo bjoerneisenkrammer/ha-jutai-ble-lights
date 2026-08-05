@@ -14,7 +14,6 @@ custom_components/jutai_ble_lights/   # Main integration package
 ├── const.py               # Constants (DOMAIN = "jutai_ble_lights")
 ├── config_flow.py         # Config UI: user enters device name + MAC address
 ├── light.py               # LightEntity: BLE communication & state management
-├── bluetooth.py           # BLE discovery callback (manufacturer data prefix 574C54)
 ├── jutai_protocol.py      # Command builders for the proprietary BLE protocol
 ├── manifest.json          # Integration metadata, requirements, version
 ├── strings.json           # English UI strings
@@ -61,12 +60,13 @@ integration requirements with `--constraint package_constraints.txt`, which pins
 both libraries to one exact version. A version range there cannot select a
 version — it can only fail to resolve and take the integration offline, which is
 what broke setup in #2 (bleak 2.x) and #9 (bleak 3.x). Compatibility with HA's
-current pin is verified by CI instead, via `scripts/check_bleak_api.py`.
+current pin is verified by CI instead, via `tests/test_bleak_api.py`, run by the
+`tests` CI job.
 
 ## Integration Metadata
 
 - **Domain:** `jutai_ble_lights`
-- **Version:** 0.5.1
+- **Version:** 0.6.0
 - **IoT Class:** `local_push`
 - **Integration type:** `device`
 - **Config flow:** enabled
@@ -86,11 +86,22 @@ current pin is verified by CI instead, via `scripts/check_bleak_api.py`.
 2. Call it from [custom_components/jutai_ble_lights/light.py](custom_components/jutai_ble_lights/light.py) inside the asyncio lock
 
 ### Testing locally
-No automated tests exist. Manual testing steps:
-1. Copy `custom_components/jutai_ble_lights/` into `<HA config>/custom_components/`
-2. Restart Home Assistant
-3. Add integration via Settings → Devices & Services → Add Integration → JuTai BLE Lights
-4. Test via HA UI: toggle, brightness slider
+
+```bash
+pip install -r requirements-test.txt
+pytest tests/ -v
+```
+
+Requires Python 3.14 or newer. `pytest-homeassistant-custom-component` is
+deliberately unpinned: each of its releases pins one exact Home Assistant
+version, so installing the newest release tracks Home Assistant automatically.
+The suite is a smoke test — it proves the integration still loads and responds
+to a service call against current Home Assistant. It does not cover reconnect
+logic, BLE error paths, or state restore.
+
+Manual verification against real hardware is still worthwhile before a release:
+copy `custom_components/jutai_ble_lights/` into `<HA config>/custom_components/`,
+restart Home Assistant, and test the toggle and brightness slider.
 
 ### Enabling debug logs in HA
 ```yaml
@@ -106,6 +117,8 @@ logger:
 - **bleak requirement removed (#9):** declaring `bleak` in `requirements` broke setup on every HA
   major bleak bump (#2 for 2026.1/bleak 2.x, #9 for 2026.6/bleak 3.x). Both libraries now come
   from the `bluetooth` dependency. See the Dependencies section before touching `requirements`.
-- CI runs Hassfest, HACS validation, and a weekly `bleak` API compatibility check
-- No unit tests for the entity logic yet
+- CI runs Hassfest, HACS validation, and the test suite (on push, on PRs, and weekly)
+- `bluetooth.py` was removed in 0.6.0: it was never called, and automatic
+  discovery needs a `bluetooth` matcher in `manifest.json` plus an
+  `async_step_bluetooth` config-flow step, neither of which exists yet
 - HACS submission is planned but not yet done
