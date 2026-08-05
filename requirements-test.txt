@@ -1,0 +1,4 @@
+# Unpinned on purpose: each release of this package pins one exact Home
+# Assistant version, so installing the newest release tracks Home Assistant
+# automatically. See docs in the CI job.
+pytest-homeassistant-custom-component
