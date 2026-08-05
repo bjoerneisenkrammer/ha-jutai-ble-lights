@@ -15,12 +15,19 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 
 
 @pytest.fixture
-def mock_ble():
+def mock_ble(mock_bluetooth: None):
     """Replace the BLE layer and hand back the fake client.
 
     light.py resolves the MAC through Home Assistant's bluetooth manager before
     connecting, so both seams need patching. Assertions read
     mock_ble.write_gatt_char.call_args_list.
+
+    `jutai_ble_lights` declares `bluetooth` as a dependency, so setting up the
+    config entry also sets up the real `bluetooth` integration, which would
+    otherwise start a real BleakScanner and probe for adapters. Depending on
+    pytest-homeassistant-custom-component's `mock_bluetooth` fixture (rather
+    than hand-patching more seams here) stops that at its source, matching how
+    Home Assistant's own test suite handles bluetooth-dependent config entries.
     """
     client = AsyncMock()
     client.is_connected = True
