@@ -107,8 +107,8 @@ See the repository for VSCode Dev Container configuration for local development 
 ### Running the test suite
 
 ```bash
-docker run --rm -v "<repo path>:/w" -w /w python:3.14-slim bash -c \
-  "pip install -q -r requirements-test.txt && python scripts/ha_test_deps.py && pytest tests/ -v"
+docker run --rm -v "<repo path>:/w" python:3.14-slim bash -c \
+  "cd /w && pip install -q -r requirements-test.txt && python scripts/ha_test_deps.py && pytest tests/ -v"
 ```
 
 The suite is a smoke test: it proves the integration loads, its config flow

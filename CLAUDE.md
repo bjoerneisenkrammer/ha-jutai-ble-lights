@@ -103,8 +103,8 @@ does not support Windows or macOS. On another OS, or to avoid touching your
 local Python at all, run it in Docker instead:
 
 ```bash
-docker run --rm -v "<repo path>:/w" -w /w python:3.14-slim bash -c \
-  "pip install -q -r requirements-test.txt && python scripts/ha_test_deps.py && pytest tests/ -v"
+docker run --rm -v "<repo path>:/w" python:3.14-slim bash -c \
+  "cd /w && pip install -q -r requirements-test.txt && python scripts/ha_test_deps.py && pytest tests/ -v"
 ```
 
 `pytest-homeassistant-custom-component` is deliberately unpinned: each of its
