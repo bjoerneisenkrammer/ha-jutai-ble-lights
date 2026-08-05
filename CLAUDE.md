@@ -49,18 +49,24 @@ HA brightness (0–255) is mapped to JuTai percentage (0–100) and vice versa.
 ## Dependencies
 
 ```json
-"requirements": ["bleak>=0.22.0,<3.0.0", "bleak-retry-connector>=3.0.0"],
+"requirements": [],
 "dependencies": ["bluetooth"]
 ```
 
-- `bleak` — Python BLE library
-- `bleak-retry-connector` — Resilient connection wrapper
 - `bluetooth` — HA's built-in Bluetooth integration (must be set up in HA)
+- `bleak` / `bleak-retry-connector` — provided by the `bluetooth` dependency, **never declared in `requirements`**
+
+**Do not add `bleak` or `bleak-retry-connector` to `requirements`.** HA installs
+integration requirements with `--constraint package_constraints.txt`, which pins
+both libraries to one exact version. A version range there cannot select a
+version — it can only fail to resolve and take the integration offline, which is
+what broke setup in #2 (bleak 2.x) and #9 (bleak 3.x). Compatibility with HA's
+current pin is verified by CI instead, via `scripts/check_bleak_api.py`.
 
 ## Integration Metadata
 
 - **Domain:** `jutai_ble_lights`
-- **Version:** 0.2.0
+- **Version:** 0.5.1
 - **IoT Class:** `local_push`
 - **Integration type:** `device`
 - **Config flow:** enabled
@@ -71,7 +77,6 @@ HA brightness (0–255) is mapped to JuTai percentage (0–100) and vice versa.
 | Branch                         | Purpose                                   |
 |--------------------------------|-------------------------------------------|
 | `main`                         | Stable / production                       |
-| `fix/bleak-requirements-ha-2026` | Current: bleak version fix for HA 2026.4 |
 | `legacy/addon`                 | Archived old MQTT add-on approach         |
 
 ## Common Tasks
@@ -98,6 +103,9 @@ logger:
 
 ## Known Issues / Context
 
-- **HA 2026.4.0 compatibility:** bleak constraint was `<2.0.0`, bumped to `<3.0.0` in current branch (`fix/bleak-requirements-ha-2026`)
-- No automated tests or CI/CD
+- **bleak requirement removed (#9):** declaring `bleak` in `requirements` broke setup on every HA
+  major bleak bump (#2 for 2026.1/bleak 2.x, #9 for 2026.6/bleak 3.x). Both libraries now come
+  from the `bluetooth` dependency. See the Dependencies section before touching `requirements`.
+- CI runs Hassfest, HACS validation, and a weekly `bleak` API compatibility check
+- No unit tests for the entity logic yet
 - HACS submission is planned but not yet done
