@@ -7,47 +7,50 @@ on:
     branches: [main]
   # Catch upstream bleak bumps before users hit them on their next HA upgrade.
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: "37 6 * * 1"
 
 jobs:
   hassfest:
     name: Hassfest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
     name: HACS Validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hacs/action@main
         with:
           category: integration
           ignore: brands
 
-  bleak-api:
-    name: bleak API compatibility
+  tests:
+    name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          # Must satisfy Home Assistant's requires-python, otherwise pip
-          # silently backtracks to an old HA release that pins an outdated
-          # bleak, and the check below would validate the wrong version.
+          # pytest-homeassistant-custom-component requires >=3.14. On an older
+          # Python, pip backtracks to an outdated release of it and the suite
+          # would quietly run against the wrong Home Assistant.
           python-version: "3.14"
 
-      # bleak and bleak-retry-connector are provided by HA's bluetooth
-      # integration, not by our manifest, so install the exact versions HA
-      # pins rather than whatever pip would resolve on its own.
-      - name: Install Home Assistant and the bleak version it pins
-        run: |
-          pip install homeassistant
-          python -c "import homeassistant, pathlib; print((pathlib.Path(homeassistant.__file__).parent / 'package_constraints.txt').read_text(), end='')" > ha-constraints.txt
-          grep -E '^(bleak|bleak-retry-connector)==' ha-constraints.txt
-          pip install -c ha-constraints.txt bleak bleak-retry-connector
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
 
-      - name: Check the bleak API surface used by this integration
-        run: python scripts/check_bleak_api.py
+      # pip does not install Home Assistant's per-integration requirements;
+      # importing light.py needs the bluetooth stack. See the script's docstring.
+      - name: Install Home Assistant's bluetooth stack
+        run: python scripts/ha_test_deps.py
+
+      # Printed so a failing run shows what it ran against without digging.
+      - name: Show versions under test
+        run: |
+          python -c "from importlib.metadata import version; print('homeassistant', version('homeassistant')); print('bleak', version('bleak'))"
+
+      - name: Run tests
+        run: pytest tests/ -v
