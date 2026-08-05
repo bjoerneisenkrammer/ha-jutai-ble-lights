@@ -40,16 +40,14 @@ jobs:
           python-version: "3.14"
 
       # bleak and bleak-retry-connector are provided by HA's bluetooth
-      # integration, not by our manifest. pip installs none of HA's
-      # per-integration requirements, so resolve our dependency closure and
-      # install it to reproduce the real runtime environment.
-      - name: Install Home Assistant and the dependencies it provides us
+      # integration, not by our manifest, so install the exact versions HA
+      # pins rather than whatever pip would resolve on its own.
+      - name: Install Home Assistant and the bleak version it pins
         run: |
           pip install homeassistant
           python -c "import homeassistant, pathlib; print((pathlib.Path(homeassistant.__file__).parent / 'package_constraints.txt').read_text(), end='')" > ha-constraints.txt
-          python scripts/ha_dep_requirements.py > ha-dep-requirements.txt
-          cat ha-dep-requirements.txt
-          pip install -c ha-constraints.txt -r ha-dep-requirements.txt
+          grep -E '^(bleak|bleak-retry-connector)==' ha-constraints.txt
+          pip install -c ha-constraints.txt bleak bleak-retry-connector
 
       - name: Check the bleak API surface used by this integration
         run: python scripts/check_bleak_api.py

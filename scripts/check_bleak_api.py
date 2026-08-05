@@ -3,30 +3,35 @@
 Home Assistant installs integration requirements under its own constraints
 file, which pins bleak to one exact version. A version range in manifest.json
 therefore cannot select a bleak version -- it can only fail to resolve and take
-the integration offline. This script replaces that non-protection: it imports
-the integration against whatever bleak Home Assistant currently ships and
-asserts that the specific API surface used by light.py still exists.
+the integration offline. This script replaces that non-protection: it checks the
+bleak API surface the integration uses against whatever bleak Home Assistant
+currently pins, so an upstream break shows up as a red build rather than as a
+broken integration after a user's next upgrade.
 
-Run locally (needs the Python version HA requires, currently >=3.14):
-    pip install homeassistant
-    python -c "import homeassistant,pathlib,json; r=pathlib.Path(homeassistant.__file__).parent; print('\n'.join(json.loads((r/'components/bluetooth/manifest.json').read_text())['requirements']))" > bt.txt
-    pip install -r bt.txt
+It deliberately does not import the integration's own modules. Doing so pulls in
+Home Assistant's runtime (bluetooth -> usb -> esphome -> ...), which pip does not
+install and which is not what this checks. The bleak imports are read out of the
+source instead.
+
+Run locally:
+    pip install bleak bleak-retry-connector
     python scripts/check_bleak_api.py
 
-Without Home Assistant installed, the HA-dependent checks are skipped and only
-the raw bleak API assertions run.
+Home Assistant is optional locally; without it, the version-pin check is
+skipped and only the bleak API assertions run.
 """
 
 from __future__ import annotations
 
+import ast
+import importlib
 import inspect
-import json
 import re
-import sys
 from importlib.metadata import version
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+REPO_ROOT = Path(__file__).resolve().parent.parent
+INTEGRATION_DIR = REPO_ROOT / "custom_components" / "jutai_ble_lights"
 
 FAILURES: list[str] = []
 
@@ -41,6 +46,25 @@ def check(description: str, condition: bool) -> None:
 def skip(description: str) -> None:
     """Note a check that could not run in this environment."""
     print(f"  SKIP  {description}")
+
+
+def bleak_imports(source_dir: Path) -> list[tuple[str, str]]:
+    """Return every (module, symbol) the integration imports from bleak.
+
+    Parsing the source keeps this honest as the integration grows: a newly
+    added bleak import is picked up automatically.
+    """
+    found: set[tuple[str, str]] = set()
+
+    for path in sorted(source_dir.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                root = node.module.split(".")[0]
+                if root in ("bleak", "bleak_retry_connector"):
+                    found.update((node.module, alias.name) for alias in node.names)
+
+    return sorted(found)
 
 
 def ha_pinned_bleak_version() -> str | None:
@@ -81,7 +105,7 @@ def main() -> int:
             bleak_version == pinned,
         )
 
-    print("Checking the bleak API surface used by light.py:")
+    print("Checking the bleak API surface used by the integration:")
 
     write_params = inspect.signature(BleakClient.write_gatt_char).parameters
     check("BleakClient.write_gatt_char accepts 'response'", "response" in write_params)
@@ -95,22 +119,17 @@ def main() -> int:
     check("BleakClient.disconnect exists", hasattr(BleakClient, "disconnect"))
     check("BleakNotFoundError is an exception", issubclass(BleakNotFoundError, Exception))
 
-    # Importing the platform proves every symbol light.py pulls from bleak and
-    # bleak-retry-connector still resolves at this version. This needs both
-    # Home Assistant and the requirements of its bluetooth integration.
-    try:
-        import custom_components.jutai_ble_lights.light  # noqa: F401
-    except ModuleNotFoundError as err:
-        if err.name == "homeassistant":
-            # Expected when running locally without HA.
-            skip("light.py import (homeassistant not installed)")
-        else:
-            # HA is present but its bluetooth stack is incomplete -- treat as a
-            # failure rather than skipping, so CI never reports a green build
-            # on an environment that could not actually run the check.
-            check(f"light.py import (missing '{err.name}')", False)
-    else:
-        check("custom_components.jutai_ble_lights.light imports", True)
+    # Verify every bleak symbol the integration imports still resolves.
+    print("Checking the bleak symbols imported by the integration:")
+    imports = bleak_imports(INTEGRATION_DIR)
+
+    # Finding nothing would mean the parser silently stopped covering the
+    # source, which must not read as a pass.
+    check(f"found bleak imports in {INTEGRATION_DIR.name}", bool(imports))
+
+    for module_name, symbol in imports:
+        module = importlib.import_module(module_name)
+        check(f"{module_name}.{symbol}", hasattr(module, symbol))
 
     if FAILURES:
         print(f"\n{len(FAILURES)} check(s) failed against bleak {bleak_version}.")
