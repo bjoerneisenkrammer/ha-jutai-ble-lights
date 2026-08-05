@@ -12,6 +12,7 @@ access or call whether or not bleak still provides it. The `hasattr` checks
 below close that gap.
 """
 
+import datetime
 import inspect
 import re
 from importlib.metadata import version
@@ -44,11 +45,20 @@ def test_bleak_not_found_error_is_exception():
 
 
 def test_installed_bleak_matches_home_assistant_pin():
-    """Guard against testing a bleak other than the one users will run.
+    """Document that the installed bleak matches Home Assistant's pin.
 
-    An earlier CI job silently validated bleak 2.1.1 while Home Assistant
-    shipped 3.0.2, because the Python version was too low and pip backtracked
-    to an older Home Assistant.
+    This cannot actually fail as currently wired: `scripts/ha_test_deps.py`
+    installs bleak from the very same Home Assistant's
+    `package_constraints.txt` that this test reads it back from, so both
+    sides always agree. It is kept anyway because it is cheap and states the
+    intent plainly.
+
+    It does NOT guard against an outdated Home Assistant slipping in whole
+    (bleak pin and all) -- that incident, where an earlier CI job silently
+    validated bleak 2.1.1 while Home Assistant shipped 3.0.2 because too low
+    a Python version made pip backtrack to an older
+    pytest-homeassistant-custom-component, is guarded by
+    `test_home_assistant_version_is_recent` below instead.
     """
     import homeassistant
 
@@ -59,4 +69,39 @@ def test_installed_bleak_matches_home_assistant_pin():
     pinned = match.group(1)
     assert installed == pinned, (
         f"installed bleak {installed} != Home Assistant's pinned {pinned}"
+    )
+
+
+def test_home_assistant_version_is_recent():
+    """Guard against pip silently backtracking to a stale Home Assistant.
+
+    `requirements-test.txt` deliberately leaves
+    `pytest-homeassistant-custom-component` unpinned so the weekly CI run
+    tracks whatever Home Assistant currently ships, while `pytest.ini` /
+    CI pin the interpreter to Python 3.14. If the harness ever raises its
+    own Python floor above that, pip will silently backtrack to an older
+    release of it -- and with it an older Home Assistant. That old Home
+    Assistant is internally consistent (its own bleak pin matches its own
+    installed bleak), so `test_installed_bleak_matches_home_assistant_pin`
+    above would stay green while this whole suite quietly validates a Home
+    Assistant nobody runs. This test catches that by asserting the
+    installed Home Assistant isn't stale.
+    """
+    from homeassistant import const
+
+    if hasattr(const, "MAJOR_VERSION") and hasattr(const, "MINOR_VERSION"):
+        year, month = const.MAJOR_VERSION, const.MINOR_VERSION
+    else:
+        match = re.match(r"(\d+)\.(\d+)", const.__version__)
+        assert match, f"cannot parse Home Assistant version {const.__version__!r}"
+        year, month = int(match.group(1)), int(match.group(2))
+
+    installed = getattr(const, "__version__", f"{year}.{month}")
+    today = datetime.date.today()
+    age_months = (today.year - year) * 12 + (today.month - month)
+    assert age_months <= 6, (
+        f"Home Assistant {installed} is more than 6 months old — pip likely "
+        "backtracked to an outdated pytest-homeassistant-custom-component, "
+        "so this suite is validating a Home Assistant nobody runs. Check "
+        "the Python version in CI against the harness's requires-python."
     )

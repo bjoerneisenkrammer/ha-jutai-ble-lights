@@ -1,7 +1,4 @@
-"""Tests for the JuTai command builders.
-
-These need no Home Assistant, so they run even when the harness is absent.
-"""
+"""Tests for the JuTai command builders: on/off and brightness (incl. clamping)."""
 
 import pytest
 

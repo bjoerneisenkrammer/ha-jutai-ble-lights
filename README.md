@@ -104,6 +104,19 @@ custom_components/jutai_ble_lights/
 
 See the repository for VSCode Dev Container configuration for local development with Home Assistant Core.
 
+### Running the test suite
+
+```bash
+docker run --rm -v "<repo path>:/w" -w /w python:3.14-slim bash -c \
+  "pip install -q -r requirements-test.txt && python scripts/ha_test_deps.py && pytest tests/ -v"
+```
+
+The suite is a smoke test: it proves the integration loads, its config flow
+creates a working entry, and it responds to a service call against current
+Home Assistant. It deliberately does not cover reconnect logic, the asyncio
+lock, BLE error paths, options-flow reload, or state restore. See `CLAUDE.md`
+for details.
+
 ## Protocol Details
 
 This integration uses the BLE protocol from the **Lumineo Twinkle Lights** mobile app ([iOS App Store](https://apps.apple.com/de/app/lumineo-twinkle-lights/id1621681360)).

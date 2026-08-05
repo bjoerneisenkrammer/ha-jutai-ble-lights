@@ -6,8 +6,10 @@ light.py reaches homeassistant.components.bluetooth, which needs habluetooth,
 dbus-fast and friends, and which imports homeassistant.components.usb, needing
 aiousbwatcher.
 
-The list is derived from the installed Home Assistant rather than hardcoded, so
-it keeps working when Home Assistant changes its bluetooth stack.
+This reads the `requirements` of a known set of components from the manifests
+of the installed Home Assistant, applying that same Home Assistant's
+constraints, so the installed versions keep matching whichever Home Assistant
+the harness resolved to.
 
 Run after installing requirements-test.txt:
     python scripts/ha_test_deps.py
@@ -20,7 +22,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-# The integration depends on `bluetooth`; `bluetooth` depends on `usb`.
+# Components whose requirements light.py needs at import time. `bluetooth` is
+# a direct dependency of this integration; `usb` is pulled in because Home
+# Assistant's `bluetooth` component imports `homeassistant.components.usb`
+# (routed through `bluetooth_adapters`, not a manifest `dependencies` entry).
 COMPONENTS = ("bluetooth", "usb")
 
 

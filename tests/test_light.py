@@ -43,12 +43,40 @@ async def test_turn_on_with_brightness(hass, mock_ble, mock_config_entry):
     assert state.attributes["brightness"] == 128
 
 
+async def test_turn_on_with_brightness_pins_rounding(hass, mock_ble, mock_config_entry):
+    """128/255 rounds to 50% either way; 5/255 does not, so it pins round()."""
+    await setup_integration(hass, mock_config_entry)
+    mock_ble.write_gatt_char.reset_mock()
+
+    await hass.services.async_call(
+        "light",
+        "turn_on",
+        {"entity_id": ENTITY_ID, "brightness": 5},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    # round(5/255*100) = round(1.96) = 2 (0x02). Truncating methods give 1.
+    assert _payloads(mock_ble) == [b"574C54021101", b"574C5402090200"]
+
+    state = hass.states.get(ENTITY_ID)
+    assert state.state == "on"
+    assert state.attributes["brightness"] == 5
+
+
 async def test_turn_off(hass, mock_ble, mock_config_entry):
     await setup_integration(hass, mock_config_entry)
     await hass.services.async_call(
         "light", "turn_on", {"entity_id": ENTITY_ID}, blocking=True
     )
     await hass.async_block_till_done()
+
+    # The prelude turn_on above sent only the on command, with no brightness
+    # payload -- the device restores its own last brightness (light.py). A
+    # refactor that unified the two branches would push a stale
+    # self._brightness (255 on first use) to the device instead, and nothing
+    # else would notice.
+    assert _payloads(mock_ble) == [b"574C54021101"]
     mock_ble.write_gatt_char.reset_mock()
 
     await hass.services.async_call(

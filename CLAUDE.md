@@ -18,6 +18,10 @@ custom_components/jutai_ble_lights/   # Main integration package
 ├── manifest.json          # Integration metadata, requirements, version
 ├── strings.json           # English UI strings
 └── translations/de.json   # German UI strings
+tests/                      # Smoke test suite (does not ship, see "Testing locally")
+scripts/ha_test_deps.py      # Installs the test harness's Home Assistant's own requirements
+pytest.ini                  # Test config (does not ship)
+requirements-test.txt        # Test dependencies (does not ship)
 README.md                  # End-user documentation
 ```
 
@@ -89,15 +93,27 @@ current pin is verified by CI instead, via `tests/test_bleak_api.py`, run by the
 
 ```bash
 pip install -r requirements-test.txt
+python scripts/ha_test_deps.py
 pytest tests/ -v
 ```
 
-Requires Python 3.14 or newer. `pytest-homeassistant-custom-component` is
-deliberately unpinned: each of its releases pins one exact Home Assistant
-version, so installing the newest release tracks Home Assistant automatically.
-The suite is a smoke test — it proves the integration still loads and responds
-to a service call against current Home Assistant. It does not cover reconnect
-logic, BLE error paths, or state restore.
+Requires Python 3.14 or newer **on Linux** — Home Assistant's bluetooth stack
+(`habluetooth`, `dbus-fast`, etc., installed by `scripts/ha_test_deps.py`)
+does not support Windows or macOS. On another OS, or to avoid touching your
+local Python at all, run it in Docker instead:
+
+```bash
+docker run --rm -v "<repo path>:/w" -w /w python:3.14-slim bash -c \
+  "pip install -q -r requirements-test.txt && python scripts/ha_test_deps.py && pytest tests/ -v"
+```
+
+`pytest-homeassistant-custom-component` is deliberately unpinned: each of its
+releases pins one exact Home Assistant version, so installing the newest
+release tracks Home Assistant automatically. The suite is a smoke test — it
+proves the integration still loads, its config flow creates a working entry,
+and it responds to a service call against current Home Assistant. It does not
+cover reconnect logic, the asyncio lock, BLE error paths, options-flow reload,
+or state restore.
 
 Manual verification against real hardware is still worthwhile before a release:
 copy `custom_components/jutai_ble_lights/` into `<HA config>/custom_components/`,
@@ -118,6 +134,10 @@ logger:
   major bleak bump (#2 for 2026.1/bleak 2.x, #9 for 2026.6/bleak 3.x). Both libraries now come
   from the `bluetooth` dependency. See the Dependencies section before touching `requirements`.
 - CI runs Hassfest, HACS validation, and the test suite (on push, on PRs, and weekly)
+- GitHub disables scheduled workflows after 60 days without repository activity.
+  The weekly run is how the unpinned test harness keeps tracking Home
+  Assistant (see "Testing locally"), so after a quiet stretch it needs
+  re-enabling under Actions before it can be relied on again
 - `bluetooth.py` was removed in 0.6.0: it was never called, and automatic
   discovery needs a `bluetooth` matcher in `manifest.json` plus an
   `async_step_bluetooth` config-flow step, neither of which exists yet
