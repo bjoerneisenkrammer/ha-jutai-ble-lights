@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Catch upstream bleak bumps before users hit them on their next HA upgrade.
+  schedule:
+    - cron: "0 6 * * 1"
 
 jobs:
   hassfest:
@@ -23,3 +26,25 @@ jobs:
         with:
           category: integration
           ignore: brands
+
+  bleak-api:
+    name: bleak API compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # bleak and bleak-retry-connector are provided by HA's bluetooth
+      # integration, not by our manifest, so install the exact versions HA
+      # pins rather than whatever pip resolves on its own.
+      - name: Install Home Assistant and its pinned Bluetooth stack
+        run: |
+          pip install homeassistant
+          python -c "import homeassistant, pathlib; print((pathlib.Path(homeassistant.__file__).parent / 'package_constraints.txt').read_text(), end='')" > ha-constraints.txt
+          grep -iE '^(bleak|bleak-retry-connector)==' ha-constraints.txt
+          pip install -c ha-constraints.txt bleak bleak-retry-connector
+
+      - name: Check the bleak API surface used by this integration
+        run: python scripts/check_bleak_api.py
